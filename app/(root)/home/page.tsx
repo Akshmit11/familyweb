@@ -4,15 +4,24 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { getUserByClerkId } from '@/lib/actions/user.actions'
+// import { Leaderboard } from '@/components/shared/Leaderboard'
 
 const HomePage = async () => {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const user = await getUserByClerkId(userId);
+  if (!user) redirect("/sign-in");
+
+  const isProfileCompleted = user.isProfileCompleted;
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-[1800px] mx-auto geistSans">
       {/* First Column - Profile Section */}
       <div className="lg:w-1/4">
         {/* Profile Completion Warning - Now visible on all screens */}
-        {true && (
+        {!isProfileCompleted && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700">
             <div className="text-sm font-medium mb-2">
               ⚠️ Your profile is incomplete. Please complete it to unlock all features.
@@ -23,7 +32,7 @@ const HomePage = async () => {
               className="w-full"
               asChild
             >
-              <Link href={`/profile/`}>Complete Profile</Link>
+              <Link href={`/profile/${user._id}/`}>Complete Profile</Link>
             </Button>
           </div>
         )}
@@ -35,7 +44,7 @@ const HomePage = async () => {
             {/* Cover Image */}
             <div className="relative h-32 rounded-t-2xl overflow-hidden">
               <Image 
-                src={"https://placehold.co/1200x400.png"} 
+                src={user.coverPhoto ? user.coverPhoto : "https://placehold.co/1200x400.png"} 
                 alt="Cover" 
                 fill 
                 className="object-cover"
@@ -46,7 +55,7 @@ const HomePage = async () => {
             <div className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 top-32">
               <div className="relative w-24 h-24 rounded-full overflow-hidden ring-4 ring-white">
                 <Image 
-                  src={"https://placehold.co/300x300.png"} 
+                  src={user.photo ? user.photo : "https://placehold.co/300x300.png"} 
                   alt="Profile" 
                   fill 
                   className="object-cover"
@@ -57,19 +66,19 @@ const HomePage = async () => {
             {/* Profile Content */}
             <div className="pt-14 pb-6 px-6 text-center">
               {/* Name */}
-              <h2 className="font-semibold text-xl mb-2 sherika tracking-wide">John Doe</h2>
+              <h2 className="font-semibold text-xl mb-2 geistSans tracking-wide">{user.firstName} {user.lastName}</h2>
               
               {/* Status */}
-              <p className="text-gray-600 text-sm mb-4 geistSans opacity-80">No status set</p>
+              <p className="text-gray-600 text-sm mb-4 geistSans opacity-80">{user.status ? user.status : "No status set"}</p>
               
               {/* Stats */}
               <div className="flex justify-center gap-8 text-sm">
                 <div>
-                  <p className="font-medium text-gray-900">Post Number</p>
+                  <p className="font-medium text-gray-900">{user.posts.length}</p>
                   <p className="text-gray-500 text-xs">Posts</p>
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">{1}</p>
+                  <p className="font-medium text-gray-900">{user.family?.members?.length || 1}</p>
                   <p className="text-gray-500 text-xs">Family Members</p>
                 </div>
               </div>

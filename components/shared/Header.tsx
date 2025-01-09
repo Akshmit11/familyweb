@@ -26,7 +26,7 @@ const Header: React.FC = () => {
 
   return (
     <header
-      className={`sticky top-0 z-10 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 ${
+      className={`sticky top-0 z-[99] w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 ${
         isStartPage ? "hidden" : ""
       }`}
     >

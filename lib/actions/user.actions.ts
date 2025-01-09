@@ -7,10 +7,11 @@ import Event from "../database/models/event.model";
 import Family from "../database/models/family.model";
 import Post from "../database/models/post.model";
 import Relationship from "../database/models/relationship.model";
-import User from "../database/models/user.model";
+import User, { IUser } from "../database/models/user.model";
 import { connectToDatabase } from "../database/mongoose";
 import { handleError } from "../utils";
 import mongoose from "mongoose";
+import Request from "../database/models/request.model";
 
 // Helper function to generate a random 10-digit ID
 const generateRandomFamilyId = (): string => {
@@ -37,8 +38,7 @@ export async function createUser(user: CreateUserParams) {
   try {
     await connectToDatabase();
 
-    
-    // Create the new user with the generated familyId
+    // Create the new user
     const newUser = await User.create(user);
 
     // Generate a unique 10-digit familyId
@@ -51,10 +51,24 @@ export async function createUser(user: CreateUserParams) {
       createdBy: newUser._id,
     });
 
-    const updatedUser = await User.findByIdAndUpdate(newUser._id, { family: newFamily._id }, { new: true });
-    // Ensure the user's familyId is correctly updated to match the Family's ID
-    // newUser.family = newFamily._id;
-    // await newUser.save();
+    // Update the user's family reference
+    let updatedUser = await User.findByIdAndUpdate(
+      newUser._id,
+      { family: newFamily._id },
+      { new: true }
+    );
+
+    // Create a new relationship record for the user
+    const newRelationship = await Relationship.create({
+      user: updatedUser._id,
+    });
+
+    // Update the user's relationship reference
+    updatedUser = await User.findByIdAndUpdate(
+      newUser._id,
+      { relationship: newRelationship._id },
+      { new: true }
+    );
 
     return JSON.parse(JSON.stringify(updatedUser));
   } catch (error) {
@@ -63,7 +77,11 @@ export async function createUser(user: CreateUserParams) {
 }
 
 // update user
-export async function updateUser(clerkId: string, user: UpdateUserParams, path?: string) {
+export async function updateUser(
+  clerkId: string,
+  user: UpdateUserParams,
+  path?: string
+) {
   try {
     await connectToDatabase();
 
@@ -112,13 +130,15 @@ export async function deleteUser(clerkId: string) {
       // Remove the user from family members and delete empty families
       await Family.updateMany(
         { members: userId },
-        { $pull: { members: userId } },
-        { createdBy: userId }
+        { $pull: { members: userId } }
       ).session(session);
       await Family.deleteMany({ members: { $size: 0 } }).session(session);
 
       // Delete relationships involving the user
-      await Relationship.deleteMany({
+      await Relationship.deleteMany({ user: userId }).session(session);
+
+      // Delete requests involving the user as either user or relative
+      await Request.deleteMany({
         $or: [{ user: userId }, { relative: userId }],
       }).session(session);
 
@@ -151,7 +171,6 @@ export async function deleteUser(clerkId: string) {
   }
 }
 
-
 // get user by id
 export const getUserById = async (userId: string) => {
   try {
@@ -171,12 +190,8 @@ export const getUserByClerkId = async (userId: string) => {
   try {
     await connectToDatabase();
 
-    const user = await User.findOne({ clerkId: userId })
-      .populate({
-        path: 'family',
-        select: 'members'
-      });
-      
+    const user = await User.findOne({ clerkId: userId });
+
     if (!user) throw new Error("User not found");
     return JSON.parse(JSON.stringify(user));
   } catch (error) {
@@ -184,3 +199,69 @@ export const getUserByClerkId = async (userId: string) => {
   }
 };
 
+// export const getDirectRelations = async (userId: string) => {
+//   try {
+//     await connectToDatabase();
+
+//     // Fetch user along with their direct relations
+//     const user = await User.findById(userId)
+//       .populate("father", "_id firstName lastName photo username gender family")
+//       .populate("mother", "_id firstName lastName photo username gender family")
+//       .populate("spouse", "_id firstName lastName photo username gender family")
+//       .populate("brother", "_id firstName lastName photo username gender family")
+//       .populate("sister", "_id firstName lastName photo username gender family")
+//       .populate("son", "_id firstName lastName photo username gender family")
+//       .populate("daughter", "_id firstName lastName photo username gender family");
+
+//     if (!user) {
+//       throw new Error("User not found");
+//     }
+
+//     // Construct relations object
+//     const relations = {
+//       father: user.father || null,
+//       mother: user.mother || null,
+//       spouse: user.spouse || null,
+//       brother: user.brother || [],
+//       sister: user.sister || [],
+//       son: user.son || [],
+//       daughter: user.daughter || [],
+//     };
+
+//     return relations;
+//   } catch (error) {
+//     handleError(error);
+//     throw new Error("Failed to get direct relations");
+//   }
+// };
+
+export const getDirectRelations = async (userId: string) => {
+  try {
+    await connectToDatabase();
+
+    // Fetch user along with their direct relations
+    const user = await User.findById(userId)
+      .populate("father", "_id firstName lastName photo username gender family")
+      .populate("mother", "_id firstName lastName photo username gender family")
+      .populate("spouse", "_id firstName lastName photo username gender family")
+      .populate(
+        "brother",
+        "_id firstName lastName photo username gender family"
+      )
+      .populate("sister", "_id firstName lastName photo username gender family")
+      .populate("son", "_id firstName lastName photo username gender family")
+      .populate(
+        "daughter",
+        "_id firstName lastName photo username gender family"
+      );
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return JSON.parse(JSON.stringify(user));
+  } catch (error) {
+    handleError(error);
+    throw new Error("Failed to get direct relations");
+  }
+};
